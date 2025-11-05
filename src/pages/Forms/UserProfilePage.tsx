@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import Button from "../../components/ui/button/Button";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import PageMeta from "../../components/common/PageMeta";
+import { authFetch } from "../../utils/authFetch";
 
 interface Profile {
   userId: number;
@@ -35,29 +36,10 @@ export default function UserProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Lấy token
-  const getJwtToken = (token: string | null): string | null => {
-    if (!token) return null;
-    try {
-      const parsed = JSON.parse(token);
-      return parsed.token || token;
-    } catch {
-      return token;
-    }
-  };
-
   // Fetch chi tiết profile
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const jwtToken = getJwtToken(token);
-    if (!jwtToken) {
-      navigate("/signin");
-      return;
-    }
     setLoading(true);
-    fetch(`${API_URL}/profile/${id}`, {
-      headers: { Authorization: `Bearer ${jwtToken}` },
-    })
+    authFetch(`${API_URL}/profile/${id}`)
       .then((res) => res.json())
       .then((data) => setProfile(data))
       .catch((err) => console.error("❌ Error fetching profile:", err))
@@ -67,14 +49,11 @@ export default function UserProfilePage() {
   // Lưu profile
   const handleSave = async () => {
     if (!profile) return;
-    const token = localStorage.getItem("token");
-    const jwtToken = getJwtToken(token);
 
-    await fetch(`${API_URL}/profile/${profile.userId}`, {
+    await authFetch(`${API_URL}/profile/${profile.userId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${jwtToken}`,
       },
       body: JSON.stringify(profile),
     });

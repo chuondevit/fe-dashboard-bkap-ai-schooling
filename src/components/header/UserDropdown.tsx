@@ -41,6 +41,7 @@ export default function UserDropdown() {
 
   const handleLogout = () => {
     localStorage.removeItem("token"); // xoá token
+    localStorage.removeItem("refreshToken");
     setToken(null); // update state
     navigate("/signin"); // chuyển về trang login
   };

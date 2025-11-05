@@ -3,6 +3,7 @@ import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import ComponentCard from "../../components/common/ComponentCard";
 import PageMeta from "../../components/common/PageMeta";
 import Swal from "sweetalert2";
+import { authFetch } from "../../utils/authFetch";
 
 export default function AddSchool() {
   const API_URL = import.meta.env.VITE_API_URL || "";
@@ -51,7 +52,7 @@ export default function AddSchool() {
     };
 
     try {
-      const res = await fetch(`${API_URL}/schools`, {
+      const res = await authFetch(`${API_URL}/schools`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(schoolData),
@@ -87,7 +88,7 @@ export default function AddSchool() {
           });
           resendBtn?.addEventListener("click", async () => {
             try {
-              const resend = await fetch(`${API_URL}/schools/${data.id}/resend-email`, {
+              const resend = await authFetch(`${API_URL}/schools/${data.id}/resend-email`, {
                 method: "POST",
               });
               if (!resend.ok) throw new Error("Resend failed");

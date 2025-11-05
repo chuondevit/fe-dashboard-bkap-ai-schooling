@@ -1,27 +1,82 @@
 import { Navigate } from "react-router-dom";
+import { useEffect, useState, type ReactNode } from "react";
+import axios from "axios";
+import useTokenSync from "../hooks/useTokenSync";
 
 interface ProtectedRouteProps {
-    children: React.ReactNode;
+    children: ReactNode;
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-    const token = localStorage.getItem("token");
+    const token = useTokenSync();
+    const [status, setStatus] = useState<"checking" | "authorized" | "unauthorized">("checking");
+    const API_URL = import.meta.env.VITE_API_URL || "";
 
-    if (!token) {
-        return <Navigate to="/signin" replace />;
+    useEffect(() => {
+        let isMounted = true;
+
+        const verifyToken = async () => {
+            const currentToken = localStorage.getItem("token");
+
+            if (!currentToken) {
+                if (isMounted) setStatus("unauthorized");
+                return;
+            }
+
+            try {
+                const payload = JSON.parse(atob(currentToken.split(".")[1]));
+                const isExpired = payload.exp * 1000 < Date.now();
+
+                if (!isExpired) {
+                    if (isMounted) setStatus("authorized");
+                    return;
+                }
+
+                const refreshToken = localStorage.getItem("refreshToken");
+                if (!refreshToken) {
+                    localStorage.removeItem("token");
+                    if (isMounted) setStatus("unauthorized");
+                    return;
+                }
+
+                const res = await axios.post(
+                    `${API_URL}/auth/refresh`,
+                    { refreshToken },
+                    { headers: { "Content-Type": "application/json" } }
+                );
+
+                const newAccessToken = res.data?.accessToken;
+                if (!newAccessToken) {
+                    throw new Error("Không nhận được access token mới");
+                }
+
+                localStorage.setItem("token", newAccessToken);
+
+                if (res.data?.refreshToken) {
+                    localStorage.setItem("refreshToken", res.data.refreshToken);
+                }
+
+                if (isMounted) setStatus("authorized");
+            } catch (error) {
+                localStorage.removeItem("token");
+                localStorage.removeItem("refreshToken");
+                if (isMounted) setStatus("unauthorized");
+            }
+        };
+
+        setStatus("checking");
+        verifyToken();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [token, API_URL]);
+
+    if (status === "checking") {
+        return null;
     }
 
-    try {
-        const payload = JSON.parse(atob(token.split(".")[1])); // decode JWT payload
-        const isExpired = payload.exp * 1000 < Date.now(); // exp tính bằng giây
-
-        if (isExpired) {
-            localStorage.removeItem("token"); // clear token hết hạn
-            return <Navigate to="/signin" replace />;
-        }
-    } catch (e) {
-        // nếu token không hợp lệ thì cũng redirect
-        localStorage.removeItem("token");
+    if (status === "unauthorized") {
         return <Navigate to="/signin" replace />;
     }
 

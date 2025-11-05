@@ -15,6 +15,7 @@ import {
 } from "../../components/ui/dialog";
 import Button from "../../components/ui/button/Button";
 import SearchSortTable, { SortOption } from "../../components/tables/SearchSortTable";
+import { authFetch } from "../../utils/authFetch";
 
 interface User {
     id: number;
@@ -83,9 +84,7 @@ export default function UserPage() {
             return;
         }
         setIsLoading(true);
-        fetch(`${API_URL}/user`, {
-            headers: { Authorization: `Bearer ${jwtToken}` },
-        })
+        authFetch(`${API_URL}/user`)
             .then((res) => {
                 if (!res.ok) throw new Error(`HTTP error! ${res.status}`);
                 return res.json();
@@ -129,10 +128,9 @@ export default function UserPage() {
             if (!jwtToken || !actorId) throw new Error("Không tìm thấy token hoặc ID người dùng");
 
             setIsLoading(true);
-            const res = await fetch(`${API_URL}/user/${id}`, {
+            const res = await authFetch(`${API_URL}/user/${id}`, {
                 method: "DELETE",
                 headers: {
-                    Authorization: `Bearer ${jwtToken}`,
                     "X-User-Id": actorId.toString(),
                 },
             });
@@ -168,10 +166,9 @@ export default function UserPage() {
 
             setIsLoading(true);
             const action = user.isActive ? "deactivate" : "activate";
-            const res = await fetch(`${API_URL}/user/${user.id}/${action}`, {
+            const res = await authFetch(`${API_URL}/user/${user.id}/${action}`, {
                 method: "POST",
                 headers: {
-                    Authorization: `Bearer ${jwtToken}`,
                     "X-User-Id": actorId.toString(),
                 },
             });
@@ -215,10 +212,9 @@ export default function UserPage() {
             if (!jwtToken || !actorId) throw new Error("Không tìm thấy token hoặc ID người dùng");
 
             setIsLoading(true);
-            const res = await fetch(`${API_URL}/user/${id}/resend-email`, {
+            const res = await authFetch(`${API_URL}/user/${id}/resend-email`, {
                 method: "POST",
                 headers: {
-                    Authorization: `Bearer ${jwtToken}`,
                     "X-User-Id": actorId.toString(),
                 },
             });
@@ -246,11 +242,10 @@ export default function UserPage() {
             if (!jwtToken || !actorId) throw new Error("Không tìm thấy token hoặc ID người dùng");
 
             setIsLoading(true);
-            const res = await fetch(`${API_URL}/user/${editingUser.id}`, {
+            const res = await authFetch(`${API_URL}/user/${editingUser.id}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${jwtToken}`,
                     "X-User-Id": actorId.toString(),
                 },
                 body: JSON.stringify({

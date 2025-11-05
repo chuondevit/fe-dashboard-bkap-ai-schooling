@@ -6,6 +6,7 @@ import PageMeta from "../../components/common/PageMeta";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import Button from "../../components/ui/button/Button";
+import { authFetch } from "../../utils/authFetch";
 
 interface DefaultReply {
   id: number;
@@ -23,16 +24,6 @@ interface User {
   email: string;
 }
 
-const getJwtToken = (token: string | null): string | null => {
-  if (!token) return null;
-  try {
-    const parsedToken = JSON.parse(token);
-    return parsedToken.token || token;
-  } catch (e) {
-    return token;
-  }
-};
-
 const getCurrentUser = async (
   setMessage: (
     message: { type: "error" | "success"; text: string } | null
@@ -45,21 +36,9 @@ const getCurrentUser = async (
     return null;
   }
 
-  const jwtToken = getJwtToken(token);
-  if (!jwtToken) {
-    console.error("❌ Token không hợp lệ.");
-    setMessage({ type: "error", text: "❌ Token không hợp lệ!" });
-    return null;
-  }
-
   try {
-    const response = await fetch(
+    const response = await authFetch(
       `${import.meta.env.VITE_API_URL || "http://localhost:8080/api"}/auth/me`,
-      {
-        headers: {
-          Authorization: `Bearer ${jwtToken}`,
-        },
-      }
     );
     if (!response.ok) {
       const errorData = await response.json();
@@ -72,13 +51,6 @@ const getCurrentUser = async (
         text: `❌ Lỗi: ${errorData.message || "Không thể lấy thông tin người dùng"
           }`,
       });
-      if (response.status === 401) {
-        localStorage.removeItem("token");
-        setMessage({
-          type: "error",
-          text: "❌ Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại!",
-        });
-      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const userData = await response.json();
@@ -121,63 +93,53 @@ export default function AddDefaultReply() {
   }, [message]);
 
   useEffect(() => {
-    setIsLoading(true);
-    getCurrentUser(setMessage).then((user) => {
-      if (!user) {
-        navigate("/signin");
-        return;
-      }
-      setCurrentUser(user);
+    let isMounted = true;
 
-      const token = localStorage.getItem("token");
-      const jwtToken = getJwtToken(token);
-      if (!jwtToken) {
-        setMessage({ type: "error", text: "❌ Token không hợp lệ!" });
-        navigate("/signin");
-        return;
-      }
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const user = await getCurrentUser(setMessage);
+        if (!isMounted) return;
 
-      fetch(`${API_URL}/default-replies`, {
-        headers: {
-          Authorization: `Bearer ${jwtToken}`,
-        },
-      })
-        .then((res) => {
-          if (!res.ok) {
-            if (res.status === 401) {
-              localStorage.removeItem("token");
-              setMessage({
-                type: "error",
-                text: "❌ Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại!",
-              });
-              navigate("/signin");
-            }
-            throw new Error(`HTTP error! status: ${res.status}`);
-          }
-          return res.json();
-        })
-        .then((data) => {
-          if (Array.isArray(data)) {
-            console.log("✅ Tải dữ liệu default-replies thành công");
-            setDefaultReplies(data);
-          } else if (data && Array.isArray(data.content)) {
-            console.log("✅ Tải dữ liệu default-replies thành công");
-            setDefaultReplies(data.content);
-          } else {
-            console.error("Unexpected API format:", data);
-            setDefaultReplies([]);
-          }
-        })
-        .catch((err) => {
-          console.error("Error fetching default replies:", err);
-          setMessage({
-            type: "error",
-            text: `❌ Lỗi: ${err.message || "Không thể tải dữ liệu!"}`,
-          });
-        })
-        .finally(() => setIsLoading(false));
-    });
-  }, [navigate]);
+        setCurrentUser(user);
+        if (!user) return;
+
+        const response = await authFetch(`${API_URL}/default-replies`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (!isMounted) return;
+
+        if (Array.isArray(data)) {
+          setDefaultReplies(data);
+        } else if (data && Array.isArray(data.content)) {
+          setDefaultReplies(data.content);
+        } else {
+          console.error("Unexpected API format:", data);
+          setDefaultReplies([]);
+        }
+      } catch (err: any) {
+        if (!isMounted) return;
+        console.error("Error fetching default replies:", err);
+        setMessage({
+          type: "error",
+          text: `❌ Lỗi: ${
+            err?.message || "Không thể tải dữ liệu!"
+          }`,
+        });
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [API_URL]);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -225,13 +187,6 @@ export default function AddDefaultReply() {
       return;
     }
 
-    const jwtToken = getJwtToken(token);
-    if (!jwtToken) {
-      setMessage({ type: "error", text: "❌ Token không hợp lệ!" });
-      navigate("/signin");
-      return;
-    }
-
     try {
       setIsLoading(true);
       const payload = {
@@ -240,11 +195,10 @@ export default function AddDefaultReply() {
       };
       console.log("📤 Yêu cầu POST tới:", `${API_URL}/default-replies`);
       console.log("📤 Payload:", JSON.stringify(payload, null, 2));
-      const res = await fetch(`${API_URL}/default-replies`, {
+      const res = await authFetch(`${API_URL}/default-replies`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${jwtToken}`,
         },
         body: JSON.stringify(payload),
       });
@@ -252,14 +206,6 @@ export default function AddDefaultReply() {
       if (!res.ok) {
         const errorData = await res.json();
         console.error("❌ Lỗi từ server:", errorData);
-        if (res.status === 401) {
-          localStorage.removeItem("token");
-          setMessage({
-            type: "error",
-            text: "❌ Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại!",
-          });
-          navigate("/signin");
-        }
         setMessage({
           type: "error",
           text: `❌ Lỗi: ${errorData.message || "Thêm mới thất bại"}`,
