@@ -3,6 +3,7 @@ import PageMeta from "../../components/common/PageMeta";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import ComponentCard from "../../components/common/ComponentCard";
 import Swal from "sweetalert2";
+import { authFetch } from "../../utils/authFetch";
 
 // ----------------------
 // 🔹 Interface định nghĩa kiểu dữ liệu
@@ -43,7 +44,7 @@ export default function EditPricing() {
     // ----------------------
     const fetchPricing = async () => {
         try {
-            const res = await fetch(`${API_URL}/pricing`);
+            const res = await authFetch(`${API_URL}/pricing`);
             if (!res.ok) throw new Error("Không thể tải dữ liệu pricing");
             const data: PricingItem[] = await res.json();
 
@@ -100,7 +101,7 @@ export default function EditPricing() {
         };
 
         try {
-            const res = await fetch(`${API_URL}/pricing-version`, {
+            const res = await authFetch(`${API_URL}/pricing-version`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),

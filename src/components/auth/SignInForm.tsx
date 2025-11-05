@@ -58,10 +58,13 @@ export default function SignInForm() {
       }
 
       const data = await res.json();
-      const token = data.token;
+      const token = data.accessToken;
       if (!token) throw new Error("Không tìm thấy token trong phản hồi");
 
       localStorage.setItem("token", token);
+      if (data.refreshToken) {
+        localStorage.setItem("refreshToken", data.refreshToken);
+      }
 
       // 🔹 Giữ spinner thêm 1.5s trước khi alert
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -71,7 +74,7 @@ export default function SignInForm() {
       navigate("/"); // chuyển trang sau khi alert
     } catch (err) {
       const error = err as Error;
-      MySwal.fire("Lỗi", `Đăng nhập thất bại: ${error.message}`, "error");
+      MySwal.fire("Lỗi", `Đăng nhập thất bại: sai tài khoản hoặc mật khẩu ! `, "error");
     } finally {
       setLoading(false);
     }

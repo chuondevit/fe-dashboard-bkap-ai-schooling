@@ -67,6 +67,7 @@ export default function UserInfoCard() {
         // 👇 nếu bị 401 thì redirect về login
         if (axios.isAxiosError(err) && err.response?.status === 401) {
           localStorage.removeItem("token"); // xoá token cũ
+          localStorage.removeItem("refreshToken");
           navigate("/signin"); // chuyển về trang login
         }
       }

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import ComponentCard from "../../components/common/ComponentCard";
 import PageMeta from "../../components/common/PageMeta";
 import SearchSortTable, { SortOption } from "../../components/tables/SearchSortTable";
-import Button from "../../components/ui/button/Button";
+import { apiGet } from "../../utils/api";
 
 interface AuditLog {
     id: number;
@@ -16,24 +15,12 @@ interface AuditLog {
     createdAt: string;
 }
 
-const getJwtToken = (token: string | null): string | null => {
-    if (!token) return null;
-    try {
-        const parsedToken = JSON.parse(token);
-        return parsedToken.token || token;
-    } catch (e) {
-        return token;
-    }
-};
-
 export default function AuditLogPage() {
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [filteredLogs, setFilteredLogs] = useState<AuditLog[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
-    const navigate = useNavigate();
     const logsPerPage = 10;
 
     useEffect(() => {
@@ -44,39 +31,31 @@ export default function AuditLogPage() {
     }, [message]);
 
     useEffect(() => {
+        let isMounted = true;
         setIsLoading(true);
-        const token = localStorage.getItem("token");
-        const jwtToken = getJwtToken(token);
-        if (!jwtToken) {
-            setMessage({ type: "error", text: "❌ Token không hợp lệ!" });
-            navigate("/signin");
-            return;
-        }
 
-        fetch(`${API_URL}/audit-logs/by-table/schools`, {
-            headers: { Authorization: `Bearer ${jwtToken}` },
-        })
-            .then((res) => {
-                if (!res.ok) {
-                    if (res.status === 401) {
-                        localStorage.removeItem("token");
-                        setMessage({ type: "error", text: "❌ Phiên đăng nhập hết hạn!" });
-                        navigate("/signin");
-                    }
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
-                return res.json();
-            })
+        apiGet<AuditLog[]>("/audit-logs/by-table/schools")
             .then((data) => {
+                if (!isMounted) return;
                 setLogs(data);
                 setFilteredLogs(data);
             })
-            .catch((err) => {
+            .catch((err: Error) => {
                 console.error("Error fetching logs:", err);
-                setMessage({ type: "error", text: `❌ Lỗi: ${err.message || "Không thể tải log!"}` });
+                if (isMounted) {
+                    setMessage({ type: "error", text: `❌ Lỗi: ${err.message || "Không thể tải log!"}` });
+                }
             })
-            .finally(() => setIsLoading(false));
-    }, [navigate]);
+            .finally(() => {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     // Pagination
     const indexOfLast = currentPage * logsPerPage;

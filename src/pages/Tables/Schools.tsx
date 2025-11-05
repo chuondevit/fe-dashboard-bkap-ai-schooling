@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Edit, Trash2, Plus } from "lucide-react";
-import axios from "axios";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
@@ -18,6 +17,7 @@ import {
   DialogFooter,
 } from "../../components/ui/dialog";
 import Button from "../../components/ui/button/Button";
+import { apiDelete, apiGet, apiPut } from "../../utils/api";
 
 interface School {
   id: number;
@@ -31,66 +31,32 @@ interface User {
   email: string;
 }
 
-const getJwtToken = (token: string | null): string | null => {
-  if (!token) return null;
-  try {
-    const parsedToken = JSON.parse(token);
-    return parsedToken.token || token;
-  } catch (e) {
-    return token;
-  }
-};
-
 const getCurrentUser = async (
   setMessage: (
     message: { type: "error" | "success"; text: string } | null
   ) => void
 ): Promise<User | null> => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    setMessage({ type: "error", text: "❌ Vui lòng đăng nhập lại!" });
-    return null;
-  }
-  const jwtToken = getJwtToken(token);
-  if (!jwtToken) {
-    setMessage({ type: "error", text: "❌ Token không hợp lệ!" });
-    return null;
-  }
   try {
-    const response = await fetch(
-      `${import.meta.env.VITE_API_URL || "http://localhost:8080/api"}/auth/me`,
-      {
-        headers: { Authorization: `Bearer ${jwtToken}` },
-      }
-    );
-    if (!response.ok) {
-      const errorData = await response.json();
-      setMessage({
-        type: "error",
-        text: `❌ Lỗi: ${
-          errorData.message || "Không thể lấy thông tin người dùng"
-        }`,
-      });
-      if (response.status === 401) localStorage.removeItem("token");
-      return null;
-    }
-    const userData = await response.json();
+    const userData = await apiGet<Record<string, any>>("/auth/me");
     return {
       id: userData.id,
       username: userData.username || userData.email,
       email: userData.email,
     };
-  } catch (err) {
+  } catch (err: any) {
+    const errorMessage =
+      err?.response?.data?.message ||
+      err?.message ||
+      "Không thể kết nối server!";
     setMessage({
       type: "error",
-      text: `❌ Lỗi: ${(err as Error).message || "Không thể kết nối server!"}`,
+      text: `❌ Lỗi: ${errorMessage}`,
     });
     return null;
   }
 };
 
 export default function School() {
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
   const [schools, setSchools] = useState<School[]>([]);
   const [filteredSchools, setFilteredSchools] = useState<School[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -113,60 +79,56 @@ export default function School() {
   }, [message]);
 
   useEffect(() => {
-    setIsLoading(true);
-    getCurrentUser(setMessage).then((user) => {
-      if (!user) {
-        navigate("/signin");
-        return;
+    let isMounted = true;
+
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const user = await getCurrentUser(setMessage);
+        if (!isMounted) return;
+
+        setCurrentUser(user);
+        if (!user) return;
+
+        const data = await apiGet<School[] | { content: School[] }>(
+          "/schools"
+        );
+
+        if (!isMounted) return;
+
+        if (Array.isArray(data)) {
+          setSchools(data);
+          setFilteredSchools(data);
+        } else if (data && Array.isArray(data.content)) {
+          setSchools(data.content);
+          setFilteredSchools(data.content);
+        } else {
+          console.error("Unexpected API format:", data);
+          setSchools([]);
+          setFilteredSchools([]);
+        }
+      } catch (err: any) {
+        if (!isMounted) return;
+        console.error("Error fetching schools:", err);
+        setMessage({
+          type: "error",
+          text: `❌ Lỗi: ${
+            err?.response?.data?.message ||
+            err?.message ||
+            "Không thể tải dữ liệu!"
+          }`,
+        });
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
-      setCurrentUser(user);
-      const token = localStorage.getItem("token");
-      const jwtToken = getJwtToken(token);
-      if (!jwtToken) {
-        setMessage({ type: "error", text: "❌ Token không hợp lệ!" });
-        navigate("/signin");
-        return;
-      }
-      fetch(`${API_URL}/schools`, {
-        headers: { Authorization: `Bearer ${jwtToken}` },
-      })
-        .then((res) => {
-          if (!res.ok) {
-            if (res.status === 401) {
-              localStorage.removeItem("token");
-              setMessage({
-                type: "error",
-                text: "❌ Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại!",
-              });
-              navigate("/signin");
-            }
-            throw new Error(`HTTP error! status: ${res.status}`);
-          }
-          return res.json();
-        })
-        .then((data) => {
-          if (Array.isArray(data)) {
-            setSchools(data);
-            setFilteredSchools(data);
-          } else if (data && Array.isArray(data.content)) {
-            setSchools(data.content);
-            setFilteredSchools(data.content);
-          } else {
-            console.error("Unexpected API format:", data);
-            setSchools([]);
-            setFilteredSchools([]);
-          }
-        })
-        .catch((err) => {
-          console.error("Error fetching schools:", err);
-          setMessage({
-            type: "error",
-            text: `❌ Lỗi: ${err.message || "Không thể tải dữ liệu!"}`,
-          });
-        })
-        .finally(() => setIsLoading(false));
-    });
-  }, [navigate]);
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Pagination
   const indexOfLastSchool = currentPage * schoolsPerPage;
@@ -194,17 +156,8 @@ export default function School() {
 
     if (result.isConfirmed) {
       try {
-        const token = localStorage.getItem("token");
-        const jwtToken = getJwtToken(token);
-        if (!jwtToken) {
-          setMessage({ type: "error", text: "❌ Token không hợp lệ!" });
-          navigate("/signin");
-          return;
-        }
         setIsLoading(true);
-        await axios.delete(`${API_URL}/schools/${id}`, {
-          headers: { Authorization: `Bearer ${jwtToken}` },
-        });
+        await apiDelete(`/schools/${id}`);
         setSchools((prev) => prev.filter((s) => s.id !== id));
         setFilteredSchools((prev) => prev.filter((s) => s.id !== id));
         MySwal.fire("Thành công", "Xóa trường thành công", "success");
@@ -230,26 +183,16 @@ export default function School() {
   const handleSaveEdit = async () => {
     if (!editingSchool) return;
     try {
-      const token = localStorage.getItem("token");
-      const jwtToken = getJwtToken(token);
-      if (!jwtToken) {
-        setMessage({ type: "error", text: "❌ Token không hợp lệ!" });
-        navigate("/signin");
-        return;
-      }
       setIsLoading(true);
-      const res = await axios.put(
-        `${API_URL}/schools/${editingSchool.id}`,
-        editingSchool,
-        {
-          headers: { Authorization: `Bearer ${jwtToken}` },
-        }
+      const updated = await apiPut<School>(
+        `/schools/${editingSchool.id}`,
+        editingSchool
       );
       setSchools((prev) =>
-        prev.map((s) => (s.id === editingSchool.id ? res.data : s))
+        prev.map((s) => (s.id === editingSchool.id ? updated : s))
       );
       setFilteredSchools((prev) =>
-        prev.map((s) => (s.id === editingSchool.id ? res.data : s))
+        prev.map((s) => (s.id === editingSchool.id ? updated : s))
       );
       setEditingSchool(null);
       MySwal.fire("Thành công", "Cập nhật trường thành công", "success");

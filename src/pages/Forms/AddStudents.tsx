@@ -5,6 +5,7 @@ import ComponentCard from "../../components/common/ComponentCard";
 import PageMeta from "../../components/common/PageMeta";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
+import { authFetch } from "../../utils/authFetch";
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -36,16 +37,6 @@ interface Class {
   name: string;
 }
 
-const getJwtToken = (token: string | null): string | null => {
-  if (!token) return null;
-  try {
-    const parsedToken = JSON.parse(token);
-    return parsedToken.token || token;
-  } catch {
-    return token;
-  }
-};
-
 const getCurrentUser = async (
   setMessage: (
     message: { type: "error" | "success"; text: string } | null
@@ -58,17 +49,9 @@ const getCurrentUser = async (
     return null;
   }
 
-  const jwtToken = getJwtToken(token);
-  if (!jwtToken) {
-    console.error("❌ Token không hợp lệ.");
-    setMessage({ type: "error", text: "❌ Token không hợp lệ!" });
-    return null;
-  }
-
   try {
-    const response = await fetch(
+    const response = await authFetch(
       `${import.meta.env.VITE_API_URL || "http://localhost:8080/api"}/auth/me`,
-      { headers: { Authorization: `Bearer ${jwtToken}` } }
     );
 
     if (!response.ok) {
@@ -80,7 +63,6 @@ const getCurrentUser = async (
           errorData.message || "Không thể lấy thông tin người dùng"
         }`,
       });
-      if (response.status === 401) localStorage.removeItem("token");
       return null;
     }
 
@@ -138,32 +120,46 @@ export default function AddStudent() {
   }, []);
 
   useEffect(() => {
-    setIsLoading(true);
-    getCurrentUser(setMessage).then((user) => {
-      if (!user) return navigate("/signin");
-      setCurrentUser(user);
+    let isMounted = true;
 
-      const token = localStorage.getItem("token");
-      const jwtToken = getJwtToken(token);
-      if (!jwtToken) return navigate("/signin");
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const user = await getCurrentUser(setMessage);
+        if (!isMounted) return;
+        setCurrentUser(user);
+        if (!user) return;
 
-      fetch(`${API_URL}/students`, {
-        headers: { Authorization: `Bearer ${jwtToken}` },
-      })
-        .then((res) => res.json())
-        .then((data) =>
-          setStudents(Array.isArray(data) ? data : data.content || [])
-        )
-        .catch((err) => console.error("❌ Lỗi khi tải học sinh:", err));
+        const [studentRes, classRes] = await Promise.all([
+          authFetch(`${API_URL}/students`),
+          authFetch(`${API_URL}/class`),
+        ]);
 
-      fetch(`${API_URL}/class`, {
-        headers: { Authorization: `Bearer ${jwtToken}` },
-      })
-        .then((res) => res.json())
-        .then((data) => setClasses(Array.isArray(data) ? data : []))
-        .finally(() => setIsLoading(false));
-    });
-  }, [navigate]);
+        if (!isMounted) return;
+
+        const studentData = await studentRes.json();
+        const classData = await classRes.json();
+
+        setStudents(Array.isArray(studentData) ? studentData : studentData.content || []);
+        setClasses(Array.isArray(classData) ? classData : []);
+      } catch (err) {
+        if (!isMounted) return;
+        console.error("❌ Lỗi khi tải dữ liệu học sinh hoặc lớp:", err);
+        setMessage({
+          type: "error",
+          text: "❌ Không thể tải dữ liệu!",
+        });
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [API_URL]);
 
   useEffect(() => {
     const usernameError = !debouncedUsername
@@ -230,10 +226,6 @@ export default function AddStudent() {
       });
     }
 
-    const token = localStorage.getItem("token");
-    const jwtToken = getJwtToken(token);
-    if (!jwtToken) return navigate("/signin");
-
     try {
       setIsSubmitting(true);
       const payload = {
@@ -245,11 +237,10 @@ export default function AddStudent() {
         classId: Number(student.classId),
       };
 
-      const res = await fetch(`${API_URL}/students`, {
+      const res = await authFetch(`${API_URL}/students`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${jwtToken}`,
         },
         body: JSON.stringify(payload),
       });

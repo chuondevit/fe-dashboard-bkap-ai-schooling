@@ -3,6 +3,7 @@ import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import ComponentCard from "../../components/common/ComponentCard";
 import PageMeta from "../../components/common/PageMeta";
 import Swal from "sweetalert2";
+import { authFetch } from "../../utils/authFetch";
 
 
 export default function AddClass() {
@@ -19,7 +20,7 @@ export default function AddClass() {
 
   // load danh sách School để chọn lớp chủ nhiệm
   useEffect(() => {
-    fetch(`${API_URL}/schools`)
+    authFetch(`${API_URL}/schools`)
       .then((res) => res.json())
       .then((data: School[]) => setSchools(data))
       .catch((err) => console.error("Error fetching classes:", err));
@@ -35,7 +36,7 @@ export default function AddClass() {
     };
 
     try {
-      const res = await fetch(`${API_URL}/class`, {
+      const res = await authFetch(`${API_URL}/class`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(classData),

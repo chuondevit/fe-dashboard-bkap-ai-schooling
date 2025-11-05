@@ -40,7 +40,10 @@ import AuditLog from "./pages/AuditLog/AuditLog"
 import UserProfilePage from "./pages/Forms/UserProfilePage";
 import EditPricing from "./pages/Forms/EditPricing"
 import Pricing from "./pages/Tables/UserPricingPage"
+
+import useTokenSync from "./hooks/useTokenSync";
 export default function App() {
+  const token = useTokenSync();
   return (
     <>
       <Router basename="/admin">

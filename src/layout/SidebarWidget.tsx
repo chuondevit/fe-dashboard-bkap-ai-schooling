@@ -5,6 +5,7 @@ export default function SidebarWidget() {
 
   const handleSignOut = () => {
     localStorage.removeItem("token"); // xoá token
+    localStorage.removeItem("refreshToken");
     navigate("/signin"); // chuyển về login
   };
 

@@ -3,6 +3,7 @@ import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import ComponentCard from "../../components/common/ComponentCard";
 import PageMeta from "../../components/common/PageMeta";
 import Swal from "sweetalert2";
+import { authFetch } from "../../utils/authFetch";
 
 export default function AddTeacherPage() {
   interface Class {
@@ -64,7 +65,9 @@ export default function AddTeacherPage() {
     }
 
     try {
-      const res = await fetch(`${API_URL}/teachers/check-email?email=${value}`);
+      const res = await authFetch(
+        `${API_URL}/teachers/check-email?email=${value}`
+      );
       const data = await res.json();
       if (data.exists) {
         setErrors((prev) => ({ ...prev, email: "Email đã tồn tại" }));
@@ -84,7 +87,9 @@ export default function AddTeacherPage() {
     }
 
     try {
-      const res = await fetch(`${API_URL}/teachers/check-code?code=${value}`);
+      const res = await authFetch(
+        `${API_URL}/teachers/check-code?code=${value}`
+      );
       const data = await res.json();
       if (data.exists) {
         setErrors((prev) => ({ ...prev, code: "Mã Giáo viên đã tồn tại" }));
@@ -99,7 +104,7 @@ export default function AddTeacherPage() {
 
   // load danh sách class để chọn lớp chủ nhiệm
   useEffect(() => {
-    fetch(`${API_URL}/class`)
+    authFetch(`${API_URL}/class`)
       .then((res) => res.json())
       .then((data: Class[]) => setClasses(data))
       .catch((err) => console.error("Error fetching classes:", err));
@@ -126,7 +131,7 @@ export default function AddTeacherPage() {
     };
 
     try {
-      const res = await fetch(`${API_URL}/teachers`, {
+      const res = await authFetch(`${API_URL}/teachers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(teacherData),

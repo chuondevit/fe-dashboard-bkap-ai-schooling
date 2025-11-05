@@ -18,6 +18,7 @@ import {
   DialogDescription,
 } from "../../components/ui/dialog";
 import Button from "../../components/ui/button/Button";
+import { authFetch } from "../../utils/authFetch";
 
 interface DefaultReply {
   id: number;
@@ -35,16 +36,6 @@ interface User {
   email: string;
 }
 
-const getJwtToken = (token: string | null): string | null => {
-  if (!token) return null;
-  try {
-    const parsedToken = JSON.parse(token);
-    return parsedToken.token || token;
-  } catch (e) {
-    return token;
-  }
-};
-
 const getCurrentUser = async (
   setMessage: (
     message: { type: "error" | "success"; text: string } | null
@@ -55,17 +46,9 @@ const getCurrentUser = async (
     setMessage({ type: "error", text: "❌ Vui lòng đăng nhập lại!" });
     return null;
   }
-  const jwtToken = getJwtToken(token);
-  if (!jwtToken) {
-    setMessage({ type: "error", text: "❌ Token không hợp lệ!" });
-    return null;
-  }
   try {
-    const response = await fetch(
+    const response = await authFetch(
       `${import.meta.env.VITE_API_URL || "http://localhost:8080/api"}/auth/me`,
-      {
-        headers: { Authorization: `Bearer ${jwtToken}` },
-      }
     );
     if (!response.ok) {
       const errorData = await response.json();
@@ -75,7 +58,6 @@ const getCurrentUser = async (
           errorData.message || "Không thể lấy thông tin người dùng"
         }`,
       });
-      if (response.status === 401) localStorage.removeItem("token");
       return null;
     }
     const userData = await response.json();
@@ -118,41 +100,46 @@ export default function DefaultReplyPage() {
   }, [message]);
 
   useEffect(() => {
-    setIsLoading(true);
-    getCurrentUser(setMessage).then((user) => {
-      if (!user) {
-        navigate("/signin");
-        return;
+    let isMounted = true;
+
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const user = await getCurrentUser(setMessage);
+        if (!isMounted) return;
+
+        setCurrentUser(user);
+        if (!user) return;
+
+        const response = await authFetch(`${API_URL}/default-replies`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const replies = Array.isArray(data) ? data : data.content || [];
+        if (!isMounted) return;
+        setDefaultReplies(replies);
+        setFilteredReplies(replies);
+      } catch (err: any) {
+        if (!isMounted) return;
+        setMessage({
+          type: "error",
+          text: `❌ Lỗi: ${
+            err?.message || "Không thể tải dữ liệu!"
+          }`,
+        });
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
-      setCurrentUser(user);
-      const token = localStorage.getItem("token");
-      const jwtToken = getJwtToken(token);
-      if (!jwtToken) {
-        setMessage({ type: "error", text: "❌ Token không hợp lệ!" });
-        navigate("/signin");
-        return;
-      }
-      fetch(`${API_URL}/default-replies`, {
-        headers: { Authorization: `Bearer ${jwtToken}` },
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-          return res.json();
-        })
-        .then((data) => {
-          const replies = Array.isArray(data) ? data : data.content || [];
-          setDefaultReplies(replies);
-          setFilteredReplies(replies);
-        })
-        .catch((err) => {
-          setMessage({
-            type: "error",
-            text: `❌ Lỗi: ${err.message || "Không thể tải dữ liệu!"}`,
-          });
-        })
-        .finally(() => setIsLoading(false));
-    });
-  }, [navigate]);
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [API_URL]);
 
   useEffect(() => {
     if (editingDefaultReply && inputRef.current) inputRef.current.focus();
@@ -169,16 +156,9 @@ export default function DefaultReplyPage() {
     });
     if (result.isConfirmed) {
       try {
-        const token = localStorage.getItem("token");
-        const jwtToken = getJwtToken(token);
-        if (!jwtToken) {
-          navigate("/signin");
-          return;
-        }
         setIsLoading(true);
-        const res = await fetch(`${API_URL}/default-replies/${id}`, {
+        const res = await authFetch(`${API_URL}/default-replies/${id}`, {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${jwtToken}` },
         });
         if (!res.ok) throw new Error("Xóa thất bại");
         setDefaultReplies((prev) => prev.filter((r) => r.id !== id));
@@ -220,24 +200,17 @@ export default function DefaultReplyPage() {
       return;
     }
     try {
-      const token = localStorage.getItem("token");
-      const jwtToken = getJwtToken(token);
-      if (!jwtToken) {
-        navigate("/signin");
-        return;
-      }
       setIsLoading(true);
       const payload = {
         replyText: editingDefaultReply.replyText.trim(),
         createdById: currentUser.id,
       };
-      const res = await fetch(
+      const res = await authFetch(
         `${API_URL}/default-replies/${editingDefaultReply.id}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${jwtToken}`,
           },
           body: JSON.stringify(payload),
         }
