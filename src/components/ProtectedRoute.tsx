@@ -9,7 +9,10 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     const token = useTokenSync();
-    const [status, setStatus] = useState<"checking" | "authorized" | "unauthorized">("checking");
+    const [status, setStatus] = useState<
+        "checking" | "authorized" | "unauthorized" | "forbidden"
+    >("checking");
+
     const API_URL = import.meta.env.VITE_API_URL || "";
 
     useEffect(() => {
@@ -25,6 +28,13 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
             try {
                 const payload = JSON.parse(atob(currentToken.split(".")[1]));
+
+                // ⭐ KIỂM TRA ROLE NGAY LẬP TỨC
+                if (payload.role === "STUDENT") {
+                    if (isMounted) setStatus("forbidden");
+                    return;
+                }
+
                 const isExpired = payload.exp * 1000 < Date.now();
 
                 if (!isExpired) {
@@ -32,6 +42,9 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
                     return;
                 }
 
+                // ===========================
+                // REFRESH TOKEN
+                // ===========================
                 const refreshToken = localStorage.getItem("refreshToken");
                 if (!refreshToken) {
                     localStorage.removeItem("token");
@@ -46,14 +59,19 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
                 );
 
                 const newAccessToken = res.data?.accessToken;
-                if (!newAccessToken) {
-                    throw new Error("Không nhận được access token mới");
-                }
+                if (!newAccessToken) throw new Error("Không nhận được token mới");
 
                 localStorage.setItem("token", newAccessToken);
 
                 if (res.data?.refreshToken) {
                     localStorage.setItem("refreshToken", res.data.refreshToken);
+                }
+
+                // ⭐ KIỂM TRA ROLE LẠI SAU KHI REFRESH
+                const newPayload = JSON.parse(atob(newAccessToken.split(".")[1]));
+                if (newPayload.role === "STUDENT") {
+                    if (isMounted) setStatus("forbidden");
+                    return;
                 }
 
                 if (isMounted) setStatus("authorized");
@@ -72,13 +90,19 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         };
     }, [token, API_URL]);
 
-    if (status === "checking") {
-        return null;
-    }
+    // Loading
+    if (status === "checking") return null;
 
+    // Không có token → đăng nhập
     if (status === "unauthorized") {
         return <Navigate to="/signin" replace />;
     }
 
+    // Có token nhưng role = STUDENT → cấm truy cập
+    if (status === "forbidden") {
+        return <Navigate to="/no-permission" replace />;
+    }
+
+    // Hợp lệ
     return <>{children}</>;
 }

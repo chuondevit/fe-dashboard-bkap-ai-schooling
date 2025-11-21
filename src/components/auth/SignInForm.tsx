@@ -20,16 +20,11 @@ export default function SignInForm() {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+  const API_URL = import.meta.env.VITE_API_URL;
   const MySwal = withReactContent(Swal);
 
   const validate = () => {
     const newErrors: typeof errors = {};
-    if (!identifier) {
-      newErrors.identifier = "Email là bắt buộc";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
-      newErrors.identifier = "Email không hợp lệ";
-    }
 
     if (!password) {
       newErrors.password = "Mật khẩu là bắt buộc";

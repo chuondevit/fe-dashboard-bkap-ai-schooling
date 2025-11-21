@@ -42,6 +42,7 @@ import EditPricing from "./pages/Forms/EditPricing"
 import Pricing from "./pages/Tables/UserPricingPage"
 
 import useTokenSync from "./hooks/useTokenSync";
+import NoPermission from "./pages/OtherPage/NoPermission";
 export default function App() {
   const token = useTokenSync();
   return (
@@ -112,6 +113,7 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* Fallback Route */}
+          <Route path="/no-permission" element={<NoPermission />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
