@@ -4,7 +4,7 @@ import svgr from "vite-plugin-svgr";
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: "/admin/",   // 👈 thêm dòng này để build ra với đường dẫn /admin/
+  base: "/dashboard",   // 👈 thêm dòng này để build ra với đường dẫn /admin/
   plugins: [
     react(),
     svgr({
