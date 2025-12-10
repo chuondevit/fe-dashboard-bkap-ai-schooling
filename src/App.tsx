@@ -30,7 +30,7 @@ export default function App() {
   const token = useTokenSync();
   return (
     <>
-      <Router basename="/dashboard">
+      <Router basename="/dashboard-teacher">
         <ScrollToTop />
         <ToastContainer position="top-right" autoClose={2000} />
         <Routes>
